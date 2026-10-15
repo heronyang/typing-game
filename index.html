@@ -1,0 +1,974 @@
+<title>Downpour Typing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one-screen app. Stat bar on top, the rain field fills the rest, a flood gauge runs down the right edge. */
+:root {
+  --bg: #dbe3ea;
+  --surface: #eef3f7;
+  --field: #e5ecf2;
+  --line: #c1cfda;
+  --fg: #15222e;
+  --muted: #566a7b;
+  --tile: #ffffff;
+  --tile-ink: #15222e;
+  --tile-edge: #b4c4d2;
+  --landed: #9db2c5;
+  --landed-ink: #15222e;
+  --accent: #b35c00;
+  --on-accent: #ffffff;
+  --typed: #b35c00;
+  --danger: #c2362b;
+  --on-danger: #ffffff;
+  --rain: rgba(38, 72, 104, 0.16);
+  --veil: rgba(219, 227, 234, 0.72);
+  --shadow: 0 18px 50px rgba(21, 34, 46, 0.18);
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c161f; --surface: #12212e; --field: #0f1c28; --line: #233a4d;
+    --fg: #e2ebf2; --muted: #8aa0b3;
+    --tile: #e4edf4; --tile-ink: #0c161f; --tile-edge: #9fb3c4;
+    --landed: #3f5a70; --landed-ink: #e2ebf2;
+    --accent: #ffb347; --on-accent: #1d1305; --typed: #b35c00;
+    --danger: #ff6b5e; --on-danger: #1d0806;
+    --rain: rgba(168, 204, 236, 0.13); --veil: rgba(12, 22, 31, 0.7);
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c161f; --surface: #12212e; --field: #0f1c28; --line: #233a4d;
+  --fg: #e2ebf2; --muted: #8aa0b3;
+  --tile: #e4edf4; --tile-ink: #0c161f; --tile-edge: #9fb3c4;
+  --landed: #3f5a70; --landed-ink: #e2ebf2;
+  --accent: #ffb347; --on-accent: #1d1305; --typed: #b35c00;
+  --danger: #ff6b5e; --on-danger: #1d0806;
+  --rain: rgba(168, 204, 236, 0.13); --veil: rgba(12, 22, 31, 0.7);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.45 var(--font-body);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+kbd {
+  font: 600 11px/1 var(--font-mono);
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.app {
+  box-sizing: border-box;
+  height: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: 16px;
+  padding-block: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------- top bar ---------- */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+}
+.brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.brand .mode-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0.14em;
+  vertical-align: middle;
+  color: var(--accent);
+}
+.stats { display: flex; align-items: center; gap: 6px 18px; flex-wrap: wrap; }
+.stat { display: flex; flex-direction: column; align-items: flex-end; min-width: 44px; }
+.stat b {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat small {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+/* ---------- stage ---------- */
+.stage { flex: 1; min-height: 0; display: flex; gap: 8px; }
+.field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: text;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.field.danger { border-color: var(--danger); box-shadow: inset 0 -60px 60px -40px var(--danger); }
+.field.nomatch { animation: nudge 0.18s; }
+#rain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.layer { position: absolute; inset: 0; }
+
+.box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--bw, 100px);
+  height: var(--bh, 40px);
+  will-change: transform;
+}
+.tile {
+  position: absolute;
+  inset: 2px 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--tile);
+  color: var(--tile-ink);
+  border: 1px solid var(--tile-edge);
+  box-shadow: 0 2px 0 var(--tile-edge);
+  font: 600 var(--fs, 18px)/1 var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tile .done { color: var(--typed); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.box.landed .tile { background: var(--landed); color: var(--landed-ink); border-color: transparent; box-shadow: none; }
+.box.target { z-index: 2; }
+.box.target .tile {
+  background: var(--tile);
+  color: var(--tile-ink);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.box.miss .tile { animation: shake 0.2s; }
+.box.pop .tile { animation: pop 0.28s ease-out forwards; }
+.box.fade .tile { animation: fade 0.5s ease-out forwards; }
+.box.flood .tile { background: var(--danger); color: var(--on-danger); border-color: transparent; box-shadow: none; }
+
+.float {
+  position: absolute;
+  font: 800 20px/1 var(--font-display);
+  color: var(--accent);
+  pointer-events: none;
+  animation: rise 0.8s ease-out forwards;
+  z-index: 3;
+}
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  font: 800 clamp(40px, 9vw, 84px)/1 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 4;
+  white-space: nowrap;
+}
+.toast.show { animation: toast 1.3s ease-out; }
+
+/* ---------- flood gauge ---------- */
+.gauge {
+  position: relative;
+  width: 28px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(to top, transparent 0 calc(10% - 1px), var(--line) calc(10% - 1px) 10%),
+    var(--surface);
+  overflow: hidden;
+}
+.gauge .fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 0%;
+  background: var(--landed);
+  transition: height 0.25s, background-color 0.3s;
+}
+.gauge.danger .fill { background: var(--danger); }
+.gauge .label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- footer ---------- */
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.foot .keys { display: flex; gap: 6px 14px; flex-wrap: wrap; }
+.current { font: 600 14px/1 var(--font-mono); color: var(--fg); min-height: 14px; }
+.current .done { color: var(--accent); }
+
+/* hidden input that brings up the on-screen keyboard on phones */
+#keys {
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 1px; height: 1px;
+  opacity: 0;
+  border: 0; padding: 0;
+  font-size: 16px;
+}
+
+/* ---------- overlays ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--veil);
+  backdrop-filter: blur(2px);
+}
+.panel {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.panel h2 {
+  margin: 0;
+  font: 800 54px/0.9 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+.panel h2 em { font-style: normal; color: var(--accent); }
+.panel p { margin: 0; color: var(--muted); max-width: 60ch; }
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.modes { display: flex; flex-direction: column; gap: 6px; }
+.mode {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+}
+.mode .num { font: 800 20px/1 var(--font-display); color: var(--muted); grid-row: span 2; }
+.mode .name { font-weight: 700; }
+.mode .sample { font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mode .best { grid-row: 1 / span 2; grid-column: 3; text-align: right; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mode .best b { display: block; font: 600 18px/1 var(--font-display); color: var(--fg); }
+.mode[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--surface); }
+.mode[aria-pressed="true"] .num { color: var(--accent); }
+
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; border: 0; padding: 9px 6px; background: var(--field); font-weight: 600; font-size: 14px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--surface); }
+.seg-note { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.primary {
+  border: 0;
+  border-radius: 8px;
+  padding: 13px 22px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 16px;
+}
+.secondary {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 18px;
+  background: transparent;
+  font-weight: 600;
+}
+.hint-line { font-size: 13px; color: var(--muted); display: flex; gap: 6px 14px; flex-wrap: wrap; }
+
+.results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
+.results div { display: flex; flex-direction: column; }
+.results b { font: 600 34px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.results small { font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.newbest { color: var(--accent); font-weight: 700; }
+
+@keyframes shake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-4px) } 75% { transform: translateX(4px) } }
+@keyframes nudge { 0%,100% { transform: translateY(0) } 50% { transform: translateY(2px) } }
+@keyframes pop { to { transform: scale(1.35); opacity: 0; } }
+@keyframes fade { to { opacity: 0; transform: translateY(6px); } }
+@keyframes rise { from { opacity: 1; transform: translateY(0) } to { opacity: 0; transform: translateY(-36px) } }
+@keyframes toast { 0% { opacity: 0; transform: translate(-50%, -40%) } 20%,70% { opacity: 1; transform: translate(-50%, -50%) } 100% { opacity: 0; transform: translate(-50%, -60%) } }
+
+@media (max-width: 560px) {
+  .brand { font-size: 24px; }
+  .stat b { font-size: 21px; }
+  .stats { gap: 4px 12px; }
+  .panel { padding: 18px; gap: 14px; }
+  .panel h2 { font-size: 42px; }
+  .foot .keys { display: none; }
+  .gauge { width: 18px; }
+  .gauge .label { display: none; }
+  .results b { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .box.miss .tile, .field.nomatch, .box.pop .tile, .float, .toast.show { animation-duration: 0.01s; }
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <h1 class="brand">Downpour<span class="mode-tag" id="modeTag">Beginner</span></h1>
+    <div class="stats">
+      <div class="stat"><b id="sScore">0</b><small>Score</small></div>
+      <div class="stat"><b id="sLevel">1</b><small>Level</small></div>
+      <div class="stat"><b id="sWpm">0</b><small>WPM</small></div>
+      <div class="stat"><b id="sAcc">100%</b><small>Accuracy</small></div>
+      <div class="stat"><b id="sStreak">0</b><small>Streak</small></div>
+      <button class="icon-btn" id="pauseBtn" type="button" aria-label="Pause">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <div class="field" id="field" aria-label="Rain field">
+      <canvas id="rain"></canvas>
+      <div class="layer" id="layer"></div>
+      <div class="toast" id="toast"></div>
+      <input id="keys" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Typing input">
+    </div>
+    <div class="gauge" id="gauge" aria-label="Flood level">
+      <div class="fill" id="gaugeFill"></div>
+      <span class="label">Flood</span>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <div class="current" id="current" aria-live="polite"></div>
+    <div class="keys">
+      <span><kbd>Backspace</kbd> drop word</span>
+      <span><kbd>Esc</kbd> pause</span>
+    </div>
+  </footer>
+</div>
+
+<!-- Start screen -->
+<div class="overlay" id="menu">
+  <div class="panel">
+    <div>
+      <h2>Down<em>pour</em></h2>
+    </div>
+    <p>Words fall like rain. Type one to wash it away. Missed words pile up at the bottom, and when any column floods to the top, the game ends.</p>
+    <div>
+      <div class="section-label">Choose your level</div>
+      <div class="modes" id="modeList"></div>
+    </div>
+    <div>
+      <div class="section-label">Rain speed</div>
+      <div class="seg" id="paceList"></div>
+      <div class="seg-note" id="paceNote"></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="startBtn" type="button">Start typing</button>
+      <div class="hint-line"><span><kbd>Enter</kbd> start</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Pause -->
+<div class="overlay" id="pauseMenu" hidden>
+  <div class="panel">
+    <h2>Paused</h2>
+    <p>The rain is holding. Your words stay where they are.</p>
+    <div class="actions">
+      <button class="primary" id="resumeBtn" type="button">Resume</button>
+      <button class="secondary" id="quitBtn" type="button">End game</button>
+      <div class="hint-line"><span><kbd>Esc</kbd> resume</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Game over -->
+<div class="overlay" id="overMenu" hidden>
+  <div class="panel">
+    <div>
+      <h2>Flooded</h2>
+      <p id="overNote"></p>
+    </div>
+    <div class="results" id="results"></div>
+    <div class="actions">
+      <button class="primary" id="againBtn" type="button">Play again</button>
+      <button class="secondary" id="menuBtn" type="button">Change level</button>
+      <div class="hint-line"><span><kbd>Enter</kbd> play again</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- word banks ----------
+  const SHORT = `the and for are but not you all any can had her was one our out day get has him his how man new now old see two way who boy did its let put say she too use art bag bed big box bus cat cup dog egg eye fan fox fun hat hen hot ice jam jar key kid leg map mix mud net nut owl pan pen pet pig pin pot rat red run sad sea sit sky sun tag ten top toy van wet win yes zip able back ball band bank bell bird blue boat body bone book cake calm card care cold cook cool corn dark desk door down draw drop duck dust easy east farm fast fire fish five flag food foot fork free frog full gift girl gold good gray grow hair half hand hard help hide hill home hope horn idea iron jump keep kind king kite lake lamp land last leaf left lift like line lion list long look love mail make many milk mind moon more nest nice note open page park path pink play rain read ring road rock roof room rose safe sand ship shoe shop sing slow snow soft song star stop swim tall tree true wave wind wing wish wolf word work yard year zero`.split(/\s+/);
+
+  const MEDIUM = `about above actor after again agree alarm album alive apple beach begin black blank brain bread brick bring brown build cabin candy chain chair chalk cheap check chess child clean clear climb clock cloud coast color count cover cream crowd dance dream dress drink drive early earth eight empty enjoy enter equal event every faith field final flame floor fluid focus forest friend frozen garden gentle giant glass globe grape green guide happy heart heavy honey horse hotel house human jelly juice knife laugh layer lemon level light limit lucky lunch magic maple metal minor money month motor mouse music novel ocean offer orange paint panel paper party peace pencil piano pilot plain planet plant plate point power price pride prize proud queen quick quiet radio raise range rapid reach ready river robot rough round royal salad scale scene school score seven shade shape share sharp sheep shell shine short silver simple skill sleep smile smoke snake solid sound space spare speak spice spoon sport spring square stage stamp stand steam stone storm story sugar summer sunny sweet table taste teach thank thick thing think three throw tiger toast today topic total touch tower track trade train travel truck trust truth uncle under union until value video visit voice water whale wheel white window winter woman world worry young zebra`.split(/\s+/);
+
+  const LONG = `absolute accident activity addition adventure afternoon agreement airplane alphabet ambition analysis animation announce apartment applause argument astronaut attention audience backyard basketball beautiful birthday blueprint boundary breakfast brilliant building calendar campfire candidate category celebrate challenge champion character chocolate classroom collection community complete computer condition confident continent creative crossroad curiosity customer dangerous daughter decision definition delivery describe dinosaur direction discovery distance document education electric elephant elevator emergency encourage engineer enormous envelope equipment everything excellent exercise experience explorer favorite festival fireplace firework flashlight football fortunate fountain framework frequency friendship furniture generation geography gratitude hamburger happiness headphone helicopter highlight historical hospital household hurricane identity important impossible incredible industry influence ingredient innocent insurance interest internet invention invisible jellyfish journalist keyboard kindness knowledge landscape language laughter lifestyle lighthouse literature magnetic marathon material medicine memorable midnight mountain movement mushroom mysterious narrative necessary negative neighbor nightmare notebook objective obstacle ordinary organize original otherwise paragraph parachute passenger pineapple playground position positive possible practical president principle priority procedure professor progress question rainstorm raincoat recommend rectangle reflection remember represent resource restaurant sandwich satellite scientist sentence september shoulder signature skeleton snowflake something sometimes spaceship squirrel standard strategy strawberry structure submarine sunflower surprise symphony telephone telescope territory thousand tomorrow tournament treasure triangle umbrella understand universe vacation vegetable waterfall wonderful yesterday`.split(/\s+/);
+  const LONG_FIT = LONG.filter((w) => w.length <= 10);
+
+  const EXPERT_FIXED = ["don't", "can't", "it's", "we're", "they'll", "isn't", "you've", "o'clock", "well-known", "x-ray", "self-made", "e-mail", "co-op", "re-enter", "100%", "$19.99", "3.14", "42nd", "#weekend", "@home", "(quiet)", "\"yes\"", "Q&A", "i.e.", "e.g.", "9:45", "2026", "U.S.A.", "C++", "node.js", "5km", "50/50", "a+b=c", "x*y", "under_score", "1st", "~/docs", "[draft]", "{code}", "<tag>"];
+  const PUNCT = [",", ".", ";", ":", "!", "?"];
+
+  // Letter mode unlocks keys row by row as the level climbs.
+  const LETTER_STAGES = ["asdfjkl", "gh", "eiru", "wotyp", "qcvbnm", "xz"];
+
+  const MODES = {
+    letters:      { label: "Letters",      sample: "a  s  d  f  j  k  l  then the rest", colW: 56,  maxLen: 1,  fallMul: 0.85, spawnMul: 0.42, perLevel: 15, cs: false },
+    beginner:     { label: "Beginner",     sample: "cat  sun  road  jump  milk",          colW: 104, maxLen: 4,  fallMul: 1.0,  spawnMul: 0.8,  perLevel: 10, cs: false },
+    intermediate: { label: "Intermediate", sample: "garden  quick  planet  storm",        colW: 132, maxLen: 7,  fallMul: 1.05, spawnMul: 1.0,  perLevel: 10, cs: false },
+    advanced:     { label: "Advanced",     sample: "lighthouse  strawberry  telescope",   colW: 180, maxLen: 12, fallMul: 1.2,  spawnMul: 1.3,  perLevel: 10, cs: false },
+    expert:       { label: "Expert",       sample: "Don't  $19.99  well-known;  Ocean!",  colW: 172, maxLen: 13, fallMul: 1.2,  spawnMul: 1.3,  perLevel: 10, cs: true  },
+  };
+  const PACES = {
+    relaxed: { label: "Drizzle", mul: 1.4,  note: "Slow rain. Good for learning the keys." },
+    steady:  { label: "Shower",  mul: 1.0,  note: "Normal speed. The rain gets heavier every level." },
+    stormy:  { label: "Storm",   mul: 0.7,  note: "Fast from the start. For confident typists." },
+  };
+
+  // ---------- settings & storage ----------
+  const settings = { mode: "beginner", pace: "steady" };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("downpour." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("downpour." + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
+  };
+  Object.assign(settings, store.get("settings", {}));
+  if (!MODES[settings.mode]) settings.mode = "beginner";
+  if (!PACES[settings.pace]) settings.pace = "steady";
+  const bestKey = () => "best." + settings.mode + "." + settings.pace;
+
+  // ---------- elements ----------
+  const field = $("field"), layer = $("layer"), input = $("keys"), toastEl = $("toast");
+  const gauge = $("gauge"), gaugeFill = $("gaugeFill"), currentEl = $("current");
+  const menu = $("menu"), pauseMenu = $("pauseMenu"), overMenu = $("overMenu");
+
+  // ---------- game state ----------
+  let state = "demo"; // demo | play | pause | over
+  let boxes = [], cols = [];
+  let numCols = 4, rows = 10, colW = 100, boxH = 40;
+  let level, cleared, score, streak, bestStreak, correct, errors, playTime, spawnTimer, target;
+
+  const pick = (a) => a[(Math.random() * a.length) | 0];
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const mode = () => MODES[settings.mode];
+
+  function resetStats() {
+    level = 1; cleared = 0; score = 0; streak = 0; bestStreak = 0;
+    correct = 0; errors = 0; playTime = 0; spawnTimer = 0.4; target = null;
+  }
+  resetStats();
+
+  // ---------- layout ----------
+  function setupGrid() {
+    const r = field.getBoundingClientRect();
+    numCols = Math.max(2, Math.floor(r.width / mode().colW));
+    rows = clamp(Math.round(r.height / 46), 8, 15);
+    cols = Array.from({ length: numCols }, () => []);
+    measure();
+  }
+  function measure() {
+    const r = field.getBoundingClientRect();
+    colW = r.width / numCols;
+    boxH = r.height / rows;
+    const tileW = colW - 6 - 16;
+    const fs = clamp(Math.min(boxH * 0.48, tileW / (mode().maxLen * 0.62)), 11, 24);
+    layer.style.setProperty("--bw", colW + "px");
+    layer.style.setProperty("--bh", boxH + "px");
+    layer.style.setProperty("--fs", fs + "px");
+    resizeRain(r);
+  }
+
+  // ---------- words ----------
+  function expertWord() {
+    if (Math.random() < 0.28) return pick(EXPERT_FIXED);
+    let w;
+    const t = Math.random();
+    if (t < 0.18) w = pick(SHORT) + "-" + pick(SHORT);
+    else w = pick(Math.random() < 0.6 ? MEDIUM : LONG_FIT);
+    const c = Math.random();
+    if (c < 0.4) w = w[0].toUpperCase() + w.slice(1);
+    else if (c < 0.5 && w.length <= 6) w = w.toUpperCase();
+    if (Math.random() < 0.45 && w.length < 12) w += pick(PUNCT);
+    return w;
+  }
+  function makeWord() {
+    switch (settings.mode) {
+      case "letters": return pick(LETTER_STAGES.slice(0, Math.min(LETTER_STAGES.length, level)).join(""));
+      case "beginner": return pick(SHORT);
+      case "intermediate": return pick(MEDIUM);
+      case "advanced": return pick(LONG);
+      default: return expertWord();
+    }
+  }
+  function uniqueWord() {
+    // avoid two live words that share a first character when possible, so targeting stays predictable
+    const live = boxes.filter((b) => b.state !== "gone");
+    let w = makeWord();
+    for (let i = 0; i < 8; i++) {
+      const clash = live.some((b) => b.text === w || (settings.mode !== "letters" && b.text[0].toLowerCase() === w[0].toLowerCase()));
+      if (!clash) break;
+      w = makeWord();
+    }
+    return w;
+  }
+
+  // ---------- speed ----------
+  const paceMul = () => (state === "demo" ? 1.6 : PACES[settings.pace].mul);
+  function fallSpeed() { // rows per second, applied to every falling box so none overtake each other
+    const fallTime = Math.max(3.4, 13 - (level - 1) * 0.8) * mode().fallMul * paceMul();
+    return (rows + 1) / fallTime;
+  }
+  function spawnEvery() {
+    return Math.max(0.42, 2.5 - (level - 1) * 0.16) * mode().spawnMul * paceMul();
+  }
+
+  // ---------- boxes ----------
+  function spawn() {
+    const free = [];
+    for (let c = 0; c < numCols; c++) {
+      const blocked = boxes.some((b) => b.col === c && b.state === "fall" && b.y < 0.4);
+      if (!blocked && cols[c].length < rows) free.push(c);
+    }
+    if (!free.length) return;
+    const el = document.createElement("div");
+    el.className = "box";
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    el.appendChild(tile);
+    const b = { text: uniqueWord(), col: pick(free), y: -1, state: "fall", typed: 0, el, tile };
+    renderText(b);
+    layer.appendChild(el);
+    boxes.push(b);
+  }
+  function renderText(b) {
+    b.tile.innerHTML = b.typed
+      ? '<span class="done">' + esc(b.text.slice(0, b.typed)) + "</span>" + esc(b.text.slice(b.typed))
+      : esc(b.text);
+  }
+  function removeBox(b, cls) {
+    b.state = "gone";
+    if (b === target) target = null;
+    const stack = cols[b.col];
+    const i = stack.indexOf(b);
+    if (i >= 0) stack.splice(i, 1);
+    boxes.splice(boxes.indexOf(b), 1);
+    b.el.classList.remove("target");
+    b.el.classList.add(cls);
+    setTimeout(() => b.el.remove(), 520);
+  }
+  function clearAll() {
+    boxes.forEach((b) => b.el.remove());
+    boxes = [];
+    cols = cols.map(() => []);
+    target = null;
+  }
+
+  // ---------- typing ----------
+  const same = (a, b) => (mode().cs ? a === b : a.toLowerCase() === b.toLowerCase());
+  const startsWith = (text, prefix) => text.length >= prefix.length && same(text.slice(0, prefix.length), prefix);
+
+  function lowest(pred) {
+    let best = null;
+    for (const b of boxes) if (b.state !== "gone" && pred(b) && (!best || b.y > best.y)) best = b;
+    return best;
+  }
+  function setTarget(b, typed) {
+    if (target && target !== b) { target.typed = 0; target.el.classList.remove("target"); renderText(target); }
+    target = b;
+    b.typed = typed;
+    b.el.classList.add("target");
+  }
+  function advance(b) {
+    correct++;
+    if (b.typed >= b.text.length) finishWord(b);
+    else renderText(b);
+  }
+  function typeChar(ch) {
+    if (state !== "play" || ch === " ") return;
+    if (target) {
+      if (same(target.text[target.typed], ch)) { target.typed++; advance(target); }
+      else {
+        // Maybe the player meant a different word with the same start
+        const prefix = target.text.slice(0, target.typed) + ch;
+        const alt = lowest((b) => b !== target && startsWith(b.text, prefix));
+        if (alt) { setTarget(alt, prefix.length); advance(alt); }
+        else miss(target);
+      }
+    } else {
+      const b = lowest((x) => same(x.text[0], ch));
+      if (b) { setTarget(b, 1); advance(b); }
+      else miss(null);
+    }
+    updateHud();
+  }
+  function dropTarget() {
+    if (!target) return;
+    target.typed = 0;
+    target.el.classList.remove("target");
+    renderText(target);
+    target = null;
+    updateHud();
+  }
+  function miss(b) {
+    errors++;
+    streak = 0;
+    const el = b ? b.el : field;
+    const cls = b ? "miss" : "nomatch";
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+  function finishWord(b) {
+    cleared++;
+    streak++;
+    bestStreak = Math.max(bestStreak, streak);
+    const pts = Math.round(10 * b.text.length * (1 + (level - 1) * 0.15)) + Math.min(streak, 25) * 2;
+    score += pts;
+    floatText("+" + pts, b);
+    removeBox(b, "pop");
+    if (cleared % mode().perLevel === 0) {
+      level++;
+      showToast("Level " + level);
+    }
+  }
+  function floatText(text, b) {
+    const f = document.createElement("div");
+    f.className = "float";
+    f.textContent = text;
+    f.style.left = (b.col * colW + colW / 2 - 14) + "px";
+    f.style.top = (b.y * boxH) + "px";
+    layer.appendChild(f);
+    setTimeout(() => f.remove(), 820);
+  }
+  function showToast(text) {
+    toastEl.textContent = text;
+    toastEl.classList.remove("show");
+    void toastEl.offsetWidth;
+    toastEl.classList.add("show");
+  }
+
+  // ---------- HUD ----------
+  function wpm() { return playTime > 3 ? Math.round((correct / 5) / (playTime / 60)) : 0; }
+  function accuracy() { const t = correct + errors; return t ? Math.round((correct / t) * 100) : 100; }
+  function updateHud() {
+    $("sScore").textContent = score.toLocaleString();
+    $("sLevel").textContent = level;
+    $("sWpm").textContent = wpm();
+    $("sAcc").textContent = accuracy() + "%";
+    $("sStreak").textContent = streak;
+    $("modeTag").textContent = mode().label;
+    currentEl.innerHTML = target
+      ? '<span class="done">' + esc(target.text.slice(0, target.typed)) + "</span>" + esc(target.text.slice(target.typed))
+      : state === "play" ? "Type any falling word" : "";
+  }
+  function updateGauge() {
+    let max = 0;
+    for (const s of cols) max = Math.max(max, s.length);
+    const pct = state === "demo" ? 0 : (max / rows) * 100;
+    gaugeFill.style.height = pct + "%";
+    const danger = pct >= 70;
+    gauge.classList.toggle("danger", danger);
+    field.classList.toggle("danger", danger && state === "play");
+  }
+
+  // ---------- loop ----------
+  let hudTick = 0;
+  function step(dt) {
+    playTime += dt;
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawn(); spawnTimer = spawnEvery(); }
+    const v = fallSpeed();
+    for (const b of boxes) {
+      if (b.state === "fall") {
+        b.y += v * dt;
+        const rest = rows - cols[b.col].length - 1;
+        if (b.y >= rest) {
+          b.y = rest;
+          b.state = "rest";
+          cols[b.col].push(b);
+          b.el.classList.add("landed");
+          if (cols[b.col].length >= rows) { gameOver(b.col); return; }
+          updateGauge();
+        }
+      } else if (b.state === "rest") {
+        const rest = rows - cols[b.col].indexOf(b) - 1;
+        if (b.y < rest) b.y = Math.min(rest, b.y + 14 * dt);
+      }
+    }
+    if ((hudTick += dt) > 0.5) { hudTick = 0; $("sWpm").textContent = wpm(); updateGauge(); }
+  }
+  function demoStep(dt) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawn(); spawnTimer = spawnEvery() * 1.4; }
+    const v = fallSpeed();
+    for (const b of boxes.slice()) {
+      b.y += v * dt;
+      if (b.y > rows - 1.2) removeBox(b, "fade");
+    }
+  }
+  function render() {
+    for (const b of boxes) b.el.style.transform = "translate(" + (b.col * colW) + "px," + (b.y * boxH) + "px)";
+  }
+
+  // ambient rain streaks on a canvas behind the tiles
+  const rainCv = $("rain"), rctx = rainCv.getContext("2d");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let drops = [], rainColor = "rgba(0,0,0,.1)", rainW = 0, rainH = 0;
+  function resizeRain(r) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    rainW = r.width; rainH = r.height;
+    rainCv.width = rainW * dpr; rainCv.height = rainH * dpr;
+    rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round((rainW * rainH) / 9000);
+    drops = Array.from({ length: n }, () => ({ x: Math.random() * rainW, y: Math.random() * rainH, l: 8 + Math.random() * 16, s: 260 + Math.random() * 260 }));
+    readRainColor();
+  }
+  function readRainColor() { rainColor = getComputedStyle(field).getPropertyValue("--rain").trim() || rainColor; }
+  function drawRain(dt) {
+    rctx.clearRect(0, 0, rainW, rainH);
+    rctx.strokeStyle = rainColor;
+    rctx.lineWidth = 1;
+    rctx.beginPath();
+    const move = state === "pause" || reduceMotion.matches ? 0 : dt;
+    for (const d of drops) {
+      d.y += d.s * move; d.x -= d.s * 0.12 * move;
+      if (d.y > rainH) { d.y = -d.l; d.x = Math.random() * (rainW + 40); }
+      if (d.x < -10) d.x = rainW + 10;
+      rctx.moveTo(d.x, d.y);
+      rctx.lineTo(d.x - d.l * 0.12, d.y + d.l);
+    }
+    rctx.stroke();
+  }
+
+  let lastT = performance.now();
+  function frame(t) {
+    const dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+    if (state === "play") step(dt);
+    else if (state === "demo") demoStep(dt);
+    render();
+    drawRain(dt);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- game flow ----------
+  function show(el, on) { el.hidden = !on; }
+  function startGame() {
+    store.set("settings", settings);
+    clearAll();
+    resetStats();
+    state = "play";
+    show(menu, false); show(overMenu, false); show(pauseMenu, false);
+    setupGrid();
+    updateHud(); updateGauge();
+    focusInput();
+  }
+  function pause() {
+    if (state !== "play") return;
+    state = "pause";
+    show(pauseMenu, true);
+    $("resumeBtn").focus();
+  }
+  function resume() {
+    if (state !== "pause") return;
+    state = "play";
+    show(pauseMenu, false);
+    lastT = performance.now();
+    focusInput();
+  }
+  function gameOver(col) {
+    state = "over";
+    if (target) { target.el.classList.remove("target"); target = null; }
+    cols[col].forEach((b) => b.el.classList.add("flood"));
+    updateGauge(); updateHud();
+    const prev = store.get(bestKey(), 0);
+    const isBest = score > prev;
+    if (isBest) store.set(bestKey(), score);
+    $("overNote").innerHTML = isBest && score > 0
+      ? '<span class="newbest">New best for ' + esc(mode().label) + " · " + esc(PACES[settings.pace].label) + ".</span>"
+      : "Best for " + esc(mode().label) + " · " + esc(PACES[settings.pace].label) + ": " + Math.max(prev, score).toLocaleString();
+    const cells = [
+      ["Score", score.toLocaleString()],
+      ["Words", cleared],
+      ["Level", level],
+      ["WPM", wpm()],
+      ["Accuracy", accuracy() + "%"],
+      ["Best streak", bestStreak],
+    ];
+    $("results").innerHTML = cells.map(([k, v]) => "<div><b>" + v + "</b><small>" + k + "</small></div>").join("");
+    setTimeout(() => { if (state === "over") { show(overMenu, true); $("againBtn").focus(); } }, 700);
+  }
+  function toMenu() {
+    state = "demo";
+    show(overMenu, false); show(pauseMenu, false); show(menu, true);
+    clearAll();
+    resetStats();
+    setupGrid();
+    renderMenu();
+    updateHud(); updateGauge();
+    $("startBtn").focus();
+  }
+  function focusInput() { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }
+
+  // ---------- menu ----------
+  function renderMenu() {
+    $("modeList").innerHTML = Object.entries(MODES).map(([key, m], i) => {
+      const best = store.get("best." + key + "." + settings.pace, 0);
+      return '<button type="button" class="mode" data-mode="' + key + '" aria-pressed="' + (key === settings.mode) + '">' +
+        '<span class="num">' + (i + 1) + "</span>" +
+        '<span class="name">' + m.label + "</span>" +
+        '<span class="sample">' + esc(m.sample) + "</span>" +
+        '<span class="best">' + (best ? "<b>" + best.toLocaleString() + "</b>best" : "") + "</span>" +
+        "</button>";
+    }).join("");
+    $("paceList").innerHTML = Object.entries(PACES).map(([key, p]) =>
+      '<button type="button" data-pace="' + key + '" aria-pressed="' + (key === settings.pace) + '">' + p.label + "</button>").join("");
+    $("paceNote").textContent = PACES[settings.pace].note;
+    $("modeTag").textContent = mode().label;
+  }
+  $("modeList").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-mode]");
+    if (!btn || btn.dataset.mode === settings.mode) return;
+    settings.mode = btn.dataset.mode;
+    store.set("settings", settings);
+    clearAll(); setupGrid(); renderMenu();
+    $("modeList").querySelector('[data-mode="' + settings.mode + '"]').focus();
+  });
+  $("paceList").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-pace]");
+    if (!btn) return;
+    settings.pace = btn.dataset.pace;
+    store.set("settings", settings);
+    renderMenu();
+    $("paceList").querySelector('[data-pace="' + settings.pace + '"]').focus();
+  });
+  $("startBtn").addEventListener("click", startGame);
+  $("againBtn").addEventListener("click", startGame);
+  $("menuBtn").addEventListener("click", toMenu);
+  $("resumeBtn").addEventListener("click", resume);
+  $("quitBtn").addEventListener("click", () => { state = "play"; show(pauseMenu, false); gameOver(cols.reduce((a, s, i) => (s.length > cols[a].length ? i : a), 0)); });
+  $("pauseBtn").addEventListener("click", () => (state === "play" ? pause() : resume()));
+  field.addEventListener("pointerdown", () => { if (state === "play") focusInput(); });
+
+  // ---------- input ----------
+  document.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.ctrlKey || e.metaKey) return;
+    if (state === "play") {
+      if (e.key === "Escape") { e.preventDefault(); pause(); return; }
+      if (e.key === "Backspace") { e.preventDefault(); dropTarget(); return; }
+      if (e.key.length === 1 && !e.altKey) { e.preventDefault(); typeChar(e.key); }
+      return;
+    }
+    if (state === "pause" && e.key === "Escape") { e.preventDefault(); resume(); return; }
+    if (e.key === "Enter" && document.activeElement?.tagName !== "BUTTON") {
+      if (state === "demo" || (state === "over" && !overMenu.hidden)) { e.preventDefault(); startGame(); }
+    }
+  });
+  // Phones send characters through the input event instead of keydown
+  input.addEventListener("input", () => {
+    const v = input.value;
+    input.value = "";
+    for (const ch of v) typeChar(ch);
+  });
+
+  document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+  window.addEventListener("blur", pause);
+  let resizeT;
+  window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(measure, 80); });
+  const darkMq = window.matchMedia("(prefers-color-scheme: dark)");
+  darkMq.addEventListener?.("change", () => setTimeout(readRainColor, 50));
+  new MutationObserver(() => setTimeout(readRainColor, 50)).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // ---------- boot ----------
+  setupGrid();
+  renderMenu();
+  updateHud();
+  requestAnimationFrame((t) => { lastT = t; requestAnimationFrame(frame); });
+})();
+</script>
