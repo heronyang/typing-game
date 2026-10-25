@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-2GZFMXMVBW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-2GZFMXMVBW');
+</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Downpour Typing</title>
@@ -545,6 +554,7 @@ kbd {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const mode = () => MODES[settings.mode];
+  const track = (name, params) => { try { if (typeof window.gtag === "function") window.gtag("event", name, params); } catch (e) { /* analytics blocked */ } };
 
   function resetStats() {
     level = 1; cleared = 0; score = 0; streak = 0; bestStreak = 0;
@@ -856,6 +866,7 @@ kbd {
     setupGrid();
     updateHud(); updateGauge();
     focusInput();
+    track("game_start", { level_name: settings.mode, pace: settings.pace });
   }
   function pause() {
     if (state !== "play") return;
@@ -878,6 +889,10 @@ kbd {
     const prev = store.get(bestKey(), 0);
     const isBest = score > prev;
     if (isBest) store.set(bestKey(), score);
+    track("game_over", {
+      level_name: settings.mode, pace: settings.pace, score, words: cleared,
+      level_reached: level, wpm: wpm(), accuracy: accuracy(), play_seconds: Math.round(playTime),
+    });
     $("overNote").innerHTML = isBest && score > 0
       ? '<span class="newbest">New best for ' + esc(mode().label) + " · " + esc(PACES[settings.pace].label) + ".</span>"
       : "Best for " + esc(mode().label) + " · " + esc(PACES[settings.pace].label) + ": " + Math.max(prev, score).toLocaleString();
