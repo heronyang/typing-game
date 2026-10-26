@@ -460,6 +460,11 @@ kbd {
       <div class="seg" id="paceList"></div>
       <div class="seg-note" id="paceNote"></div>
     </div>
+    <div>
+      <div class="section-label">Start at level</div>
+      <div class="seg" id="startList"></div>
+      <div class="seg-note" id="startNote"></div>
+    </div>
     <div class="actions">
       <button class="primary" id="startBtn" type="button">Start typing</button>
       <div class="hint-line"><span><kbd>Enter</kbd> start</span></div>
@@ -516,11 +521,11 @@ kbd {
   const LETTER_STAGES = ["asdfjkl", "gh", "eiru", "wotyp", "qcvbnm", "xz"];
 
   const MODES = {
-    letters:      { label: "Letters",      sample: "a  s  d  f  j  k  l  then the rest", colW: 56,  maxLen: 1,  fallMul: 0.85, spawnMul: 0.42, perLevel: 15, cs: false },
-    beginner:     { label: "Beginner",     sample: "cat  sun  road  jump  milk",          colW: 104, maxLen: 4,  fallMul: 1.0,  spawnMul: 0.8,  perLevel: 10, cs: false },
-    intermediate: { label: "Intermediate", sample: "garden  quick  planet  storm",        colW: 132, maxLen: 7,  fallMul: 1.05, spawnMul: 1.0,  perLevel: 10, cs: false },
-    advanced:     { label: "Advanced",     sample: "lighthouse  strawberry  telescope",   colW: 180, maxLen: 12, fallMul: 1.2,  spawnMul: 1.3,  perLevel: 10, cs: false },
-    expert:       { label: "Expert",       sample: "Don't  $19.99  well-known;  Ocean!",  colW: 172, maxLen: 13, fallMul: 1.2,  spawnMul: 1.3,  perLevel: 10, cs: true  },
+    letters:      { label: "Letters",      sample: "a  s  d  f  j  k  l  then the rest", colW: 56,  maxLen: 1,  fallMul: 0.85, spawnMul: 0.42, perLevel: 12, cs: false },
+    beginner:     { label: "Beginner",     sample: "cat  sun  road  jump  milk",          colW: 104, maxLen: 4,  fallMul: 1.0,  spawnMul: 0.8,  perLevel: 8, cs: false },
+    intermediate: { label: "Intermediate", sample: "garden  quick  planet  storm",        colW: 132, maxLen: 7,  fallMul: 1.05, spawnMul: 1.0,  perLevel: 8, cs: false },
+    advanced:     { label: "Advanced",     sample: "lighthouse  strawberry  telescope",   colW: 180, maxLen: 12, fallMul: 1.2,  spawnMul: 1.3,  perLevel: 8, cs: false },
+    expert:       { label: "Expert",       sample: "Don't  $19.99  well-known;  Ocean!",  colW: 172, maxLen: 13, fallMul: 1.2,  spawnMul: 1.3,  perLevel: 8, cs: true  },
   };
   const PACES = {
     relaxed: { label: "Drizzle", mul: 1.4,  note: "Slow rain. Good for learning the keys." },
@@ -529,7 +534,7 @@ kbd {
   };
 
   // ---------- settings & storage ----------
-  const settings = { mode: "beginner", pace: "steady" };
+  const settings = { mode: "beginner", pace: "steady", startLevel: 1 };
   const store = {
     get(k, d) { try { const v = localStorage.getItem("downpour." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("downpour." + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
@@ -537,6 +542,8 @@ kbd {
   Object.assign(settings, store.get("settings", {}));
   if (!MODES[settings.mode]) settings.mode = "beginner";
   if (!PACES[settings.pace]) settings.pace = "steady";
+  const START_LEVELS = { 1: "Begin gently and build up.", 4: "Skip the warm-up.", 7: "Already brisk.", 10: "Fast from the first word.", 14: "Near top speed. Hard for anyone." };
+  if (!START_LEVELS[settings.startLevel]) settings.startLevel = 1;
   const bestKey = () => "best." + settings.mode + "." + settings.pace;
 
   // ---------- elements ----------
@@ -557,7 +564,7 @@ kbd {
   const track = (name, params) => { try { if (typeof window.gtag === "function") window.gtag("event", name, params); } catch (e) { /* analytics blocked */ } };
 
   function resetStats() {
-    level = 1; cleared = 0; score = 0; streak = 0; bestStreak = 0;
+    level = settings.startLevel; cleared = 0; score = 0; streak = 0; bestStreak = 0;
     correct = 0; errors = 0; playTime = 0; spawnTimer = 0.4; target = null;
   }
   resetStats();
@@ -617,13 +624,14 @@ kbd {
   }
 
   // ---------- speed ----------
+  const curLevel = () => (state === "demo" ? 1 : level);
   const paceMul = () => (state === "demo" ? 1.6 : PACES[settings.pace].mul);
   function fallSpeed() { // rows per second, applied to every falling box so none overtake each other
-    const fallTime = Math.max(3.4, 13 - (level - 1) * 0.8) * mode().fallMul * paceMul();
+    const fallTime = Math.max(2.2, 13 * Math.pow(0.87, curLevel() - 1)) * mode().fallMul * paceMul();
     return (rows + 1) / fallTime;
   }
   function spawnEvery() {
-    return Math.max(0.42, 2.5 - (level - 1) * 0.16) * mode().spawnMul * paceMul();
+    return Math.max(0.3, 2.5 * Math.pow(0.87, curLevel() - 1)) * mode().spawnMul * paceMul();
   }
 
   // ---------- boxes ----------
@@ -866,7 +874,7 @@ kbd {
     setupGrid();
     updateHud(); updateGauge();
     focusInput();
-    track("game_start", { level_name: settings.mode, pace: settings.pace });
+    track("game_start", { level_name: settings.mode, pace: settings.pace, start_level: settings.startLevel });
   }
   function pause() {
     if (state !== "play") return;
@@ -933,6 +941,9 @@ kbd {
     $("paceList").innerHTML = Object.entries(PACES).map(([key, p]) =>
       '<button type="button" data-pace="' + key + '" aria-pressed="' + (key === settings.pace) + '">' + p.label + "</button>").join("");
     $("paceNote").textContent = PACES[settings.pace].note;
+    $("startList").innerHTML = Object.keys(START_LEVELS).map((lv) =>
+      '<button type="button" data-start="' + lv + '" aria-pressed="' + (+lv === settings.startLevel) + '">' + lv + "</button>").join("");
+    $("startNote").textContent = START_LEVELS[settings.startLevel];
     $("modeTag").textContent = mode().label;
   }
   $("modeList").addEventListener("click", (e) => {
@@ -950,6 +961,14 @@ kbd {
     store.set("settings", settings);
     renderMenu();
     $("paceList").querySelector('[data-pace="' + settings.pace + '"]').focus();
+  });
+  $("startList").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-start]");
+    if (!btn) return;
+    settings.startLevel = +btn.dataset.start;
+    store.set("settings", settings);
+    renderMenu();
+    $("startList").querySelector('[data-start="' + settings.startLevel + '"]').focus();
   });
   $("startBtn").addEventListener("click", startGame);
   $("againBtn").addEventListener("click", startGame);
